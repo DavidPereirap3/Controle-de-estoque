@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Denúncia Anônima</title>
+<style>
+  :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;--bg:#0f1724;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8}
+  body{margin:0;background:linear-gradient(180deg,#071023 0%,#071827 100%);color:#eef2ff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{max-width:760px;width:100%;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:28px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+  h1{margin:0 0 8px;font-size:20px}
+  p.lead{margin:0 0 16px;color:var(--muted)}
+  label{display:block;margin-top:12px;font-size:13px}
+  textarea,input[type="text"]{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;resize:vertical}
+  .row{display:flex;gap:12px}
+  .small{font-size:12px;color:var(--muted)}
+  button{margin-top:14px;padding:10px 14px;border-radius:8px;border:0;background:var(--accent);color:#042024;font-weight:600;cursor:pointer}
+  .note{margin-top:8px;font-size:12px;color:#ffdf9e}
+  .success{background:#0f5132;padding:10px;border-radius:8px;color:#d1fae5;margin-top:12px}
+  .error{background:#4c1f1f;padding:10px;border-radius:8px;color:#ffdede;margin-top:12px}
+  .meta{margin-top:8px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="card" role="main">
+    <h1>Registrar Denúncia (anônima)</h1>
+    <p class="lead">Descreva o fato com o máximo de detalhes possível. Não coloque seu nome, telefone ou dados pessoais.</p>
+
+    <label for="category">Categoria (opcional)</label>
+    <input id="category" type="text" placeholder="ex: corrupção, assédio, desmatamento">
+
+    <label for="description">Descrição</label>
+    <textarea id="description" rows="7" placeholder="Digite a denúncia aqui..." required></textarea>
+
+    <label for="attachment">Anexo (foto) — opcional</label>
+    <input id="attachment" type="file" accept="image/*">
+
+    <div class="row" style="margin-top:10px;align-items:center">
+      <button id="sendBtn">Enviar denúncia</button>
+      <div id="status" class="meta"></div>
+    </div>
+
+    <p class="note">Aviso: anexos podem conter metadados (EXIF). Remova dados pessoais das fotos antes de enviar. O sistema NÃO pede nem armazena seu nome — porém o servidor pode registrar IPs (veja recomendações).</p>
+
+    <div id="result"></div>
+  </div>
+
+<script>
+const sendBtn = document.getElementById('sendBtn');
+const statusEl = document.getElementById('status');
+const resultEl = document.getElementById('result');
+
+async function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    if(!file) return res(null);
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]); // base64 raw
+    r.onerror = () => rej('Erro ao ler arquivo');
+    r.readAsDataURL(file);
+  });
+}
+
+sendBtn.addEventListener('click', async () => {
+  statusEl.textContent = 'Enviando...';
+  resultEl.innerHTML = '';
+  sendBtn.disabled = true;
+
+  try {
+    const category = document.getElementById('category').value.trim();
+    const description = document.getElementById('description').value.trim();
+    const file = document.getElementById('attachment').files[0];
+
+    if(!description) { throw 'Descrição é obrigatória.'; }
+
+    const attachmentBase64 = await fileToBase64(file);
+
+    const payload = {
+      category,
+      description,
+      attachmentBase64, // base64 string or null
+      timestamp: new Date().toISOString()
+    };
+
+    // Alterar a URL abaixo para onde seu servidor vai aceitar POST
+    const endpoint = '/submit';
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      mode: 'cors',
+      cache: 'no-store',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    if(!resp.ok){
+      const txt = await resp.text().catch(()=>null);
+      throw txt || 'Erro no servidor';
+    }
+
+    statusEl.textContent = '';
+    resultEl.innerHTML = '<div class="success">Denúncia enviada — obrigado.</div>';
+    document.getElementById('description').value = '';
+    document.getElementById('attachment').value = '';
+  } catch(err){
+    console.error(err);
+    statusEl.textContent = '';
+    resultEl.innerHTML = '<div class="error">Falha ao enviar: '+ String(err) +'</div>';
+  } finally {
+    sendBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
